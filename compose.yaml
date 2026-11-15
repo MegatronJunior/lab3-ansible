@@ -1,0 +1,55 @@
+services:
+  controller:
+    build:
+      context: .
+      dockerfile: docker/controller.Dockerfile
+    container_name: lab3-controller
+    working_dir: /workspace/ansible
+    environment:
+      ANSIBLE_CONFIG: /workspace/ansible/ansible.cfg
+    volumes:
+      - ./:/workspace:ro
+    command: ["sleep", "infinity"]
+    depends_on:
+      nginx:
+        condition: service_healthy
+      app:
+        condition: service_healthy
+    networks:
+      - lab3-net
+
+  nginx:
+    build:
+      context: .
+      dockerfile: docker/target.Dockerfile
+    container_name: lab3-nginx
+    ports:
+      - "127.0.0.1:8080:80"
+    volumes:
+      - ./.ssh/id_ed25519.pub:/run/ansible-key/id_ed25519.pub:ro
+    healthcheck:
+      test: ["CMD", "bash", "-c", "echo > /dev/tcp/127.0.0.1/22"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    networks:
+      - lab3-net
+
+  app:
+    build:
+      context: .
+      dockerfile: docker/target.Dockerfile
+    container_name: lab3-app
+    volumes:
+      - ./.ssh/id_ed25519.pub:/run/ansible-key/id_ed25519.pub:ro
+    healthcheck:
+      test: ["CMD", "bash", "-c", "echo > /dev/tcp/127.0.0.1/22"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    networks:
+      - lab3-net
+
+networks:
+  lab3-net:
+    name: lab3-net

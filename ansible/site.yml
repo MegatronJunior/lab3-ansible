@@ -1,0 +1,12 @@
+---
+- name: Configure application host
+  hosts: app_hosts
+  gather_facts: true
+  roles:
+    - app
+
+- name: Configure Nginx host
+  hosts: nginx_hosts
+  gather_facts: true
+  roles:
+    - nginx

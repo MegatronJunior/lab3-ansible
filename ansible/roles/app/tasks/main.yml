@@ -1,0 +1,103 @@
+---
+- name: Check the operating system
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['os_family'] == 'Debian'
+    fail_msg: This role supports Debian-based systems only.
+
+- name: Install application dependencies
+  ansible.builtin.apt:
+    name:
+      - python3-venv
+      - python3-pip
+      - supervisor
+    update_cache: true
+    cache_valid_time: 3600
+    state: present
+
+- name: Create application user
+  ansible.builtin.user:
+    name: "{{ app_user }}"
+    shell: /usr/sbin/nologin
+    home: "{{ app_dir }}"
+    create_home: false
+    system: true
+
+- name: Create application directory
+  ansible.builtin.file:
+    path: "{{ app_dir }}"
+    state: directory
+    owner: "{{ app_user }}"
+    group: "{{ app_user }}"
+    mode: "0755"
+
+- name: Upload application release archive
+  ansible.builtin.copy:
+    src: "{{ release_archive }}"
+    dest: "{{ app_dir }}/release.tar.gz"
+    owner: "{{ app_user }}"
+    group: "{{ app_user }}"
+    mode: "0644"
+  register: release_copy
+
+- name: Extract application release
+  ansible.builtin.unarchive:
+    src: "{{ app_dir }}/release.tar.gz"
+    dest: "{{ app_dir }}"
+    remote_src: true
+    extra_opts:
+      - --strip-components=1
+    owner: "{{ app_user }}"
+    group: "{{ app_user }}"
+  when: release_copy.changed
+  notify: Restart application
+
+- name: Install Python requirements in virtual environment
+  ansible.builtin.pip:
+    requirements: "{{ app_dir }}/requirements.txt"
+    virtualenv: "{{ app_dir }}/venv"
+    virtualenv_command: python3 -m venv
+  notify: Restart application
+
+- name: Install application launcher
+  ansible.builtin.template:
+    src: start-app.sh.j2
+    dest: "{{ app_dir }}/start.sh"
+    owner: "{{ app_user }}"
+    group: "{{ app_user }}"
+    mode: "0755"
+  notify: Restart application
+
+- name: Install Supervisor application configuration
+  ansible.builtin.template:
+    src: supervisor.conf.j2
+    dest: /etc/supervisor/conf.d/lab3-app.conf
+    mode: "0644"
+  notify: Restart application
+
+- name: Check Supervisor status
+  ansible.builtin.command: supervisorctl status
+  register: supervisor_status
+  failed_when: false
+  changed_when: false
+
+- name: Start Supervisor if needed
+  ansible.builtin.command: supervisord -c /etc/supervisor/supervisord.conf
+  when: supervisor_status.rc != 0
+
+- name: Apply Supervisor configuration
+  ansible.builtin.command: supervisorctl update
+  register: supervisor_update
+  changed_when: "'No config updates to processes' not in supervisor_update.stdout"
+
+- name: Apply pending application restarts
+  ansible.builtin.meta: flush_handlers
+
+- name: Check application health
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ app_port }}/health"
+    status_code: 200
+  register: app_health
+  retries: 15
+  delay: 2
+  until: app_health.status == 200
