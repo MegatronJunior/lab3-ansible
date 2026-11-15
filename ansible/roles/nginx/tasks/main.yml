@@ -1,0 +1,52 @@
+---
+- name: Check the operating system
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['os_family'] == 'Debian'
+    fail_msg: This role supports Debian-based systems only.
+
+- name: Install Nginx
+  ansible.builtin.apt:
+    name: nginx
+    update_cache: true
+    cache_valid_time: 3600
+    state: present
+
+- name: Disable the default Nginx virtual host
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  notify: Reload Nginx
+
+- name: Install reverse proxy configuration
+  ansible.builtin.template:
+    src: lab3.conf.j2
+    dest: /etc/nginx/conf.d/lab3.conf
+    mode: "0644"
+  notify: Reload Nginx
+
+- name: Validate Nginx configuration
+  ansible.builtin.command: nginx -t
+  changed_when: false
+
+- name: Check Nginx process
+  ansible.builtin.shell: 'test -s /run/nginx.pid && kill -0 "$(cat /run/nginx.pid)"'
+  register: nginx_status
+  failed_when: false
+  changed_when: false
+
+- name: Start Nginx if needed
+  ansible.builtin.command: nginx
+  when: nginx_status.rc != 0
+
+- name: Apply pending Nginx reload
+  ansible.builtin.meta: flush_handlers
+
+- name: Check application through Nginx
+  ansible.builtin.uri:
+    url: http://127.0.0.1/health
+    status_code: 200
+  register: proxy_health
+  retries: 15
+  delay: 2
+  until: proxy_health.status == 200

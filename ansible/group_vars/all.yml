@@ -1,0 +1,6 @@
+---
+app_dir: /opt/lab3-app
+app_user: lab3app
+app_port: 8080
+nginx_upstream: app
+release_archive: /workspace/artifacts/app.tar.gz

@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd "{{ app_dir }}"
+exec "{{ app_dir }}/venv/bin/gunicorn" --bind "0.0.0.0:{{ app_port }}" --workers 2 app:app

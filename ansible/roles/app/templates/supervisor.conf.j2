@@ -1,0 +1,12 @@
+[program:lab3-app]
+command={{ app_dir }}/start.sh
+directory={{ app_dir }}
+user={{ app_user }}
+autostart=true
+autorestart=true
+startsecs=1
+stopasgroup=true
+killasgroup=true
+stdout_logfile=/var/log/lab3-app.log
+stderr_logfile=/var/log/lab3-app-error.log
+environment=PYTHONUNBUFFERED="1"

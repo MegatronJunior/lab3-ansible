@@ -1,0 +1,3 @@
+---
+- name: Restart application
+  ansible.builtin.command: supervisorctl restart lab3-app
